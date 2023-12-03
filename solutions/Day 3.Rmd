@@ -1,0 +1,165 @@
+---
+title: "Day 3"
+output: html_notebook
+---
+
+# --- Day 3: Gear Ratios ---
+You and the Elf eventually reach a gondola lift station; he says the gondola lift will take you up to the water source, but this is as far as he can bring you. You go inside.
+
+It doesn't take long to find the gondolas, but there seems to be a problem: they're not moving.
+
+"Aaah!"
+
+You turn around to see a slightly-greasy Elf with a wrench and a look of surprise. "Sorry, I wasn't expecting anyone! The gondola lift isn't working right now; it'll still be a while before I can fix it." You offer to help.
+
+The engineer explains that an engine part seems to be missing from the engine, but nobody can figure out which one. If you can add up all the part numbers in the engine schematic, it should be easy to work out which part is missing.
+
+The engine schematic (your puzzle input) consists of a visual representation of the engine. There are lots of numbers and symbols you don't really understand, but apparently any number adjacent to a symbol, even diagonally, is a "part number" and should be included in your sum. (Periods (.) do not count as a symbol.)
+
+Here is an example engine schematic:
+
+467..114..
+...*......
+..35..633.
+......#...
+617*......
+.....+.58.
+..592.....
+......755.
+...$.*....
+.664.598..
+In this schematic, two numbers are not part numbers because they are not adjacent to a symbol: 114 (top right) and 58 (middle right). Every other number is adjacent to a symbol and so is a part number; their sum is 4361.
+
+Of course, the actual engine schematic is much larger. What is the sum of all of the part numbers in the engine schematic?
+
+
+```{r}
+# load libraries
+library(tidyverse)
+
+# Read in file
+data <- read_delim("../inputs/day 3 input.txt", delim = " ", col_names = c("raw"))
+
+# get locations of numbers 
+number_locations <- gregexpr("\\d+", data$raw) %>% 
+  lapply(function(x){
+    bind_cols(start = x, end = x + attr(x, "match.length") - 1)
+  }) 
+
+# add in row numbers and convert to data frame
+number_locations <- Map(cbind, number_locations, row = seq_along(number_locations)) %>%
+  bind_rows() %>%
+  mutate(number = as.numeric(substr(data$raw[row], start, end)))
+
+# intialise adjacent_symbol column, which will indicate whether the number has an adjacent symbol
+number_locations$adjacent_symbol = F
+
+# for each number, check if a surrounding character is a symbol
+num_rows = nrow(data)
+num_cols = nchar(data$raw[1])
+for (i in 1:nrow(number_locations)){
+  symbol = 0
+  # if not the first row, then check row above
+  if (number_locations$row[i] > 1){
+    symbol <- symbol + grepl("[^a-zA-Z0-9.]", substr(data$raw[number_locations$row[i] - 1], 
+                 number_locations$start[i] - 
+                            ifelse(number_locations$start[i] == 1, 0, 1),
+                 number_locations$end[i] + 
+                            ifelse(number_locations$end[i] == num_cols, 0, 1)))
+  }
+  # if not the first character on row, then check previous character on same row
+  if(number_locations$start[i] > 1){
+    symbol <- symbol + grepl("[^a-zA-Z0-9.]", substr(data$raw[number_locations$row[i]], 
+                 number_locations$start[i] - 1,
+                 number_locations$start[i] - 1))
+  }
+  # if not last character on row, then check subsequent character on same row
+  if (number_locations$end[i] < num_cols){
+    symbol <- symbol + grepl("[^a-zA-Z0-9.]", substr(data$raw[number_locations$row[i]], 
+                 number_locations$end[i] + 1,
+                 number_locations$end[i] + 1))
+  }
+  # if not final row, then check the characters on the row below
+  if (number_locations$row[i] < num_rows){
+    symbol <- symbol + grepl("[^a-zA-Z0-9.]", substr(data$raw[number_locations$row[i] + 1], 
+                 number_locations$start[i] - 
+                            ifelse(number_locations$start[i] == 1, 0, 1),
+                 number_locations$end[i] + 
+                            ifelse(number_locations$end[i] == num_cols, 0, 1)))
+  }
+  # if any symbols returned TRUE then set the adjacent_symbol value to true for this number
+  if (symbol > 0){
+    number_locations$adjacent_symbol[i] <- T
+  }
+}
+
+number_locations %>% filter(adjacent_symbol) %>% select(number) %>% sum()
+
+
+```
+
+
+# Part Two 
+
+The engineer finds the missing part and installs it in the engine! As the engine springs to life, you jump in the closest gondola, finally ready to ascend to the water source.
+
+You don't seem to be going very fast, though. Maybe something is still wrong? Fortunately, the gondola has a phone labeled "help", so you pick it up and the engineer answers.
+
+Before you can explain the situation, she suggests that you look out the window. There stands the engineer, holding a phone in one hand and waving with the other. You're going so slowly that you haven't even left the station. You exit the gondola.
+
+The missing part wasn't the only issue - one of the gears in the engine is wrong. A gear is any * symbol that is adjacent to exactly two part numbers. Its gear ratio is the result of multiplying those two numbers together.
+
+This time, you need to find the gear ratio of every gear and add them all up so that the engineer can figure out which gear needs to be replaced.
+
+Consider the same engine schematic again:
+
+467..114..
+...*......
+..35..633.
+......#...
+617*......
+.....+.58.
+..592.....
+......755.
+...$.*....
+.664.598..
+In this schematic, there are two gears. The first is in the top left; it has part numbers 467 and 35, so its gear ratio is 16345. The second gear is in the lower right; its gear ratio is 451490. (The * adjacent to 617 is not a gear because it is only adjacent to one part number.) Adding up all of the gear ratios produces 467835.
+
+What is the sum of all of the gear ratios in your engine schematic?
+
+```{r}
+
+# get locations of numbers 
+gear_locations <- gregexpr("[*]", data$raw) %>% 
+  lapply(function(x){
+    bind_cols(col = x)
+  })
+
+# add in row numbers and convert to data frame
+gear_locations <- Map(cbind, gear_locations, row = seq_along(gear_locations)) %>%
+  bind_rows() %>%
+  filter(col > 0)
+
+# for each gear, determine whether there are two adjacent numbers and if there are, calculate the gear ration value
+gear_locations$adjacent_number_1 <- 0
+gear_locations$adjacent_number_2 <- 0
+gear_locations$gear_ratio <- 0
+
+for (i in 1:nrow(gear_locations)){
+  numbers <- filter(number_locations, 
+                    start - 1 <= gear_locations$col[i] & 
+                      end + 1 >= gear_locations$col[i] &
+                      row - 1 <= gear_locations$row[i] &
+                      row + 1 >= gear_locations$row[i])
+  if (nrow(numbers) == 2){
+    gear_locations$adjacent_number_1[i] <- numbers$number[1]
+    gear_locations$adjacent_number_2[i] <- numbers$number[2]
+    gear_locations$gear_ratio[i] <- numbers$number[1] * numbers$number[2]
+  }
+}
+
+# sum the gear 
+sum(gear_locations$gear_ratio)
+
+```
+
