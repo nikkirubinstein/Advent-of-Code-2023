@@ -48,3 +48,67 @@ data <- mutate(data,
 # Sum values to get final output
 sum(data$numeric_extremes)
 ```
+
+
+Your calculation isn't quite right. It looks like some of the digits are actually spelled out with letters: one, two, three, four, five, six, seven, eight, and nine also count as valid "digits".
+
+Equipped with this new information, you now need to find the real first and last digit on each line. For example:
+
+two1nine
+eightwothree
+abcone2threexyz
+xtwone3four
+4nineeightseven2
+zoneight234
+7pqrstsixteen
+In this example, the calibration values are 29, 83, 13, 24, 42, 14, and 76. Adding these together produces 281.
+
+What is the sum of all of the calibration values?
+
+```{r}
+# load libraries
+library(tidyverse)
+library(stringi)
+
+# for every row
+# locate all occurrences of each of the numbers one - nine and store the first position
+# replace the character in the first position of each occurrence with the relevant number
+
+# create a manual mapping table
+numeric_mapping <- data.frame(
+  words = c("one", "two", "three", "four", "five", "six", "seven", "eight", "nine"),
+  numbers = c("1", "2", "3", "4", "5", "6", "7", "8", "9")
+)
+
+# Read in file
+data <- read_delim("../inputs/day 1 input.txt", delim = " ", col_names = c("raw"))
+data$replaced_numbers <- data$raw
+
+# replace the first character of every number spelled out in words with the number itself
+# this protracted approach was used to capture numbers with overlapping characters (e.g. oneight should return both 1 and 8)
+for (i in 1:nrow(data)){
+  number_occurs <- str_locate_all(data$raw[i], numeric_mapping$words)
+  for (j in 1:length(number_occurs)){
+    if (length(number_occurs[[j]]) > 0){
+      current_number <- number_occurs[[j]] %>% as.data.frame()
+      for (k in 1:nrow(current_number)){
+        substr(data$replaced_numbers[i], current_number[k,1], current_number[k,1]) <- numeric_mapping$numbers[j]
+      }
+    }
+  }
+}
+
+# Extract numeric values from data 
+data$numeric_data <- as.character(extract_numeric(data$replaced_numbers))
+
+# Number of characters for each entry
+data$num_chars <- nchar(data$numeric_data)
+
+# Extract first and final digit
+data <- mutate(data, 
+               numeric_extremes = as.numeric(paste0(substr(numeric_data, 1, 1),
+                                                substr(numeric_data,num_chars,num_chars))))
+
+# Sum values to get final output
+sum(data$numeric_extremes)
+```
